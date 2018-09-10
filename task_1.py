@@ -80,31 +80,38 @@ k, b = np.polyfit(log_N, log_T, 1)
 # plotting examples https://matplotlib.org/examples/pylab_examples/log_demo.html
 
 # Initialize empty figure with fixated size
-plt.figure(figsize=(14, 10))
-plt.subplots_adjust(hspace=0.3, wspace=0.3)
+fig, ax = plt.subplots(figsize=(14, 10))
+fig.canvas.set_window_title('Plotted data')
+plt.subplots_adjust(hspace=0.5, wspace=0.3)
 
 # subplot(n-rows, n-columns, position)
-plt.subplot(1,2,1)
+ax1 = plt.subplot(2, 1, 1)
 
 # Line approximation
-approx, *__ = plt.loglog(N, np.exp(log_N*k + b), 'k-')
-err, *__ = plt.errorbar(N, T, yerr=error, fmt='o', markersize=2)
+plt.loglog(N, np.exp(log_N*k + b), 'k-')
+plt.errorbar(N, T, yerr=error, fmt='o', markersize=2)
 
 plt.xlabel('$log(N)$')
 plt.ylabel('$log(T)$')
 plt.title('$Multiplication$ $time$ $from$ $matrix$ $size$')
 plt.legend(['$Approximation$', '$Mean$ $and$ $deviation$'])
 plt.grid(True)
+# Select the area of figure to save as plot
+plot_area_1 = ax1.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+# Expand the area to fit all the labels and titles
+plot_area_1 = plot_area_1.expanded(1.2, 1.4)
+plt.savefig('ax1_figure.png', bbox_inches=plot_area_1)
+plt.savefig('ax1_figure.eps', bbox_inches=plot_area_1)
 
 
-PLOT_2_DATASET_NAME = 'plot_2_data.xlsx'
+PLOT_2_DATASET_NAME = 'plot_3_data.xlsx'
 plot_2_dataset_params = {
                         'name': PLOT_2_DATASET_NAME,
                         'st': 2,
                         'end': 500,
-                        'num': 400,
+                        'num': 40,
                         'fill_value': 5,
-                        'ntests': 25,
+                        'ntests': 2,
                         }
 # Created dataset if it doesn't exist
 if PLOT_2_DATASET_NAME not in os.listdir():
@@ -122,41 +129,42 @@ T = mean_by_row.values
 N = df['Size'].values
 
 
-# Filter time measurement outliers by relative error
-rel_error = error / T * 100
-REL_ERROR_THRESHOLD = 10 # %
-error_mask = (rel_error < REL_ERROR_THRESHOLD) & (rel_error != 0)
-T_inliers = T[error_mask]
-N_inliers = N[error_mask]
-error_inliers = error[error_mask]
+def calculate_complexity(N, T):
+    # Shift values
+    N1 = np.array(N[:len(N) - 1]) 
+    N2 = np.array(N[1::])
+    T1 = np.array(T[:len(T) - 1])
+    T2 = np.array(T[1::])
 
-# Shift values
-N1 = np.array(N_inliers[:len(N_inliers) - 1]) 
-N2 = np.array(N_inliers[1::])
-T1 = np.array(T_inliers[:len(T_inliers) - 1])
-T2 = np.array(T_inliers[1::])
-T1_err = np.array(error_inliers[:len(error_inliers) - 1])
-T2_err = np.array(error_inliers[1::])
+    # Calculate complexity 
+    n = np.abs(np.log(T2/T1)/np.log(N2/N1))
+    return n
 
-# Calculate complexity 
-n = np.abs(np.log(T2/T1)/np.log(N2/N1))
-n_abs_err = np.log(T2_err/T1_err)
-# n_abs_err = np.log((T2_err/T2)/(T1_err/T2))*n
+
+N_axis = np.array(N[:len(N) - 1])
+n_by_test = pd.DataFrame(np.array([calculate_complexity(N, df[t]) for t in time_cols]).T)
+n = n_by_test.mean(axis=1)
+n_abs_err = n_by_test.std(axis=1)
 n_rel_err = abs(n_abs_err/n*100)
 
 # Set filtering parameters
-mask = (n_rel_err < 20) & (n < 3.5) & (n > 2)
-k, b = np.polyfit(N1[mask], n[mask], 1)
+mask = (n_rel_err < 30) & (n < 3.5) & (n > 2)
+k, b = np.polyfit(N_axis[mask], n[mask], 1)
 
 # Check log err bars https://faculty.washington.edu/stuve/log_error.pdf
-# shall try calculate n using not mean T, but each column instead
-plt.subplot(1,2,2)
+ax2 = plt.subplot(2,1,2)
 plt.ylim((0, 4))
-err, *__ = plt.errorbar(N1[mask], n[mask], yerr=n_abs_err[mask], fmt='o', markersize=2)
-approx, *__ = plt.plot(N1[mask], N1[mask]*k + b, 'k-')
+plt.errorbar(N_axis[mask], n[mask], yerr=n_abs_err[mask], fmt='o', markersize=2)
+plt.plot(N_axis[mask], N_axis[mask]*k + b, 'k-')
 plt.xlabel('$N$')
 plt.ylabel('$n(N)$')
 plt.title('$Correlation$ $of$ $complexity$ $and$ $size$')
 plt.legend(['$Approximation$', '$Mean$ $and$ $deviation$'], loc=4)
 plt.grid(True)
+# Select the area of figure to save as plot
+plot_area_2 = ax2.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+# Expand the area to fit all the labels and titles
+plot_area_2 = plot_area_2.expanded(1.2, 1.4)
+plt.savefig('ax2_figure.png', bbox_inches=plot_area_2)
+plt.savefig('ax2_figure.eps', bbox_inches=plot_area_2)
 plt.show()
